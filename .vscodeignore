@@ -1,0 +1,10 @@
+.vscode/**
+src/**
+tsconfig.json
+jest.config.js
+tests/**
+*.map
+node_modules/context-compiler-typescript/src
+node_modules/context-compiler-typescript/tests
+node_modules/context-compiler-typescript/node_modules
+node_modules/context-compiler-typescript/*.tgz

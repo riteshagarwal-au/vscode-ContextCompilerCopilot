@@ -1,0 +1,180 @@
+{
+  "name": "vscode-context-compiler-copilot",
+  "displayName": "Context Compiler Copilot",
+  "description": "Automatically optimises GitHub Copilot prompts — strips boilerplate, trims history, and filters irrelevant system-prompt sections to reduce token usage.",
+  "version": "0.1.0",
+  "publisher": "contextcompiler",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": ["AI", "Other"],
+  "keywords": ["copilot", "token", "optimisation", "context", "proxy"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "contextCompilerCopilot",
+          "title": "Context Compiler Copilot",
+          "icon": "images/icon-activity-bar.svg"
+        }
+      ]
+    },
+    "views": {
+      "contextCompilerCopilot": [
+        {
+          "id": "contextCompilerCopilot.statusView",
+          "name": "Status"
+        },
+        {
+          "id": "contextCompilerCopilot.statsView",
+          "name": "Token Savings"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Context Compiler Copilot",
+      "properties": {
+        "contextCompilerCopilot.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable the Context Compiler proxy."
+        },
+        "contextCompilerCopilot.proxyPort": {
+          "type": "number",
+          "default": 8181,
+          "description": "Local port for the embedded proxy server."
+        },
+        "contextCompilerCopilot.recentTurns": {
+          "type": "number",
+          "default": 3,
+          "description": "Number of recent conversation turn-pairs to keep during history trimming."
+        },
+        "contextCompilerCopilot.maxToolChars": {
+          "type": "number",
+          "default": 200,
+          "description": "Maximum characters to keep from old tool results."
+        },
+        "contextCompilerCopilot.extractionModel": {
+          "type": "string",
+          "default": "claude-haiku-4.5",
+          "description": "VS Code language model family used for system-prompt section extraction."
+        },
+        "contextCompilerCopilot.logExchanges": {
+          "type": "boolean",
+          "default": false,
+          "description": "Write token-savings log to the extension storage folder (off by default for privacy)."
+        }
+      }
+    },
+    "chatSessions": [
+      {
+        "type": "contextcompiler.ccc",
+        "name": "CCC",
+        "displayName": "Context Compiler Copilot",
+        "description": "Optimised Copilot — strips boilerplate, trims history, filters irrelevant context before sending to the model."
+      }
+    ],
+    "chatParticipants": [
+      {
+        "id": "contextcompiler.ccc",
+        "name": "CCC",
+        "fullName": "Context Compiler Copilot",
+        "description": "Optimised Copilot — strips boilerplate, trims history, filters irrelevant context before sending to the model.",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "stats",
+            "description": "Show token savings statistics"
+          },
+          {
+            "name": "dashboard",
+            "description": "Open the token savings dashboard"
+          },
+          {
+            "name": "toggle",
+            "description": "Toggle optimisation on/off"
+          }
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "command": "contextCompilerCopilot.showStats",
+        "title": "Context Compiler: Show Token Savings",
+        "category": "Context Compiler"
+      },
+      {
+        "command": "contextCompilerCopilot.toggleEnabled",
+        "title": "Context Compiler: Toggle On/Off",
+        "category": "Context Compiler"
+      },
+      {
+        "command": "contextCompilerCopilot.showDashboard",
+        "title": "Context Compiler: Open Dashboard",
+        "category": "Context Compiler"
+      },
+      {
+        "command": "contextCompilerCopilot.restartProxy",
+        "title": "Restart Proxy",
+        "category": "Context Compiler",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "contextCompilerCopilot.changePort",
+        "title": "Change Port",
+        "category": "Context Compiler",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "contextCompilerCopilot.changeExtractionModel",
+        "title": "Change Extraction Model",
+        "category": "Context Compiler",
+        "icon": "$(symbol-enum)"
+      }
+    ],
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "contextCompilerCopilot.restartProxy",
+          "when": "view == contextCompilerCopilot.statusView && viewItem == ccc.proxy",
+          "group": "inline"
+        },
+        {
+          "command": "contextCompilerCopilot.changePort",
+          "when": "view == contextCompilerCopilot.statusView && viewItem == ccc.port",
+          "group": "inline"
+        },
+        {
+          "command": "contextCompilerCopilot.changeExtractionModel",
+          "when": "view == contextCompilerCopilot.statusView && viewItem == ccc.extractionModel",
+          "group": "inline"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "lint": "eslint src --ext .ts",
+    "test": "jest --forceExit",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "context-compiler-typescript": "file:../ContextCompiler-TypeScript/context-compiler-typescript-0.1.0.tgz"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/vscode": "^1.95.0",
+    "@vscode/vsce": "^2.29.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.5.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.5",
+    "typescript": "^5.4.5"
+  }
+}
