@@ -3,8 +3,12 @@
   "displayName": "Context Compiler Copilot",
   "description": "Automatically optimises GitHub Copilot prompts — strips boilerplate, trims history, and filters irrelevant system-prompt sections to reduce token usage.",
   "version": "0.1.0",
-  "publisher": "contextcompiler",
+  "publisher": "riteshagarwal",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/riteshagarwal-au/vscode-ContextCompilerCopilot"
+  },
   "engines": {
     "vscode": "^1.95.0"
   },
@@ -133,6 +137,12 @@
         "title": "Change Extraction Model",
         "category": "Context Compiler",
         "icon": "$(symbol-enum)"
+      },
+      {
+        "command": "contextCompilerCopilot.resetStats",
+        "title": "Reset Stats",
+        "category": "Context Compiler",
+        "icon": "$(trash)"
       }
     ],
     "menus": {
@@ -151,6 +161,13 @@
           "command": "contextCompilerCopilot.changeExtractionModel",
           "when": "view == contextCompilerCopilot.statusView && viewItem == ccc.extractionModel",
           "group": "inline"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "contextCompilerCopilot.resetStats",
+          "when": "view == contextCompilerCopilot.statsView",
+          "group": "navigation"
         }
       ]
     }

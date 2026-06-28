@@ -88,3 +88,16 @@ export async function getCopilotToken(): Promise<{ token: string; baseUrl: strin
 
   return { token: cached.token, baseUrl: cached.baseUrl };
 }
+
+/**
+ * Get the raw GitHub OAuth token from VS Code's session.
+ * Used for direct GitHub API calls (e.g. copilot_internal/user for quota).
+ */
+export async function getGitHubToken(): Promise<string> {
+  let session = await vscode.authentication.getSession('github', ['read:user'], { silent: true });
+  if (!session) {
+    session = await vscode.authentication.getSession('github', ['read:user'], { createIfNone: true });
+  }
+  if (!session) { throw new Error('Not signed in to GitHub.'); }
+  return session.accessToken;
+}
