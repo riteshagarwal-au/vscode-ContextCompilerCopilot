@@ -39,14 +39,28 @@ That's it.
 
 ## Install
 
+Search **"Context Compiler Copilot"** in the VS Code Extensions panel, or:
+
 ```
-ext install contextcompiler.vscode-context-compiler-copilot
+ext install riteshagarwal.vscode-context-compiler-copilot
 ```
 
 Or install from `.vsix`:
 ```bash
 code --install-extension vscode-context-compiler-copilot-0.1.0.vsix
 ```
+
+---
+
+## Dashboard
+
+Once active, open these in your browser:
+
+| Page | URL | Description |
+|---|---|---|
+| Savings Dashboard | `http://localhost:8181/dashboard` | Token savings, credits, by-mode/model tables, premium quota gauge |
+| Message Inspector | `http://localhost:8181/compilation` | Before/after view of every compiled request |
+| Copilot Inspector | `http://localhost:8181/copilot` | Raw input/output sent to GitHub Copilot API |
 
 ---
 

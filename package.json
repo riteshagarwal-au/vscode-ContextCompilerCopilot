@@ -2,9 +2,10 @@
   "name": "vscode-context-compiler-copilot",
   "displayName": "Context Compiler Copilot",
   "description": "Automatically optimises GitHub Copilot prompts — strips boilerplate, trims history, and filters irrelevant system-prompt sections to reduce token usage.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "riteshagarwal",
   "license": "MIT",
+  "icon": "images/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/riteshagarwal-au/vscode-ContextCompilerCopilot"
