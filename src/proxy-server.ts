@@ -194,10 +194,10 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
   <meta charset="UTF-8">
   <title>Context Compiler Copilot — Dashboard</title>
   <style>
-    body { font-family: system-ui, sans-serif; background: #0d1117; color: #e6edf3; margin: 0; padding: 2rem; }
+    body { font-family: system-ui, sans-serif; background: #0d1117; color: #e6edf3; margin: 0; padding: 2rem; position: relative; }
     h1 { font-size: 1.4rem; color: #58a6ff; margin: 0 0 1.5rem; }
     h2 { font-size: 1rem; color: #8b949e; margin: 1.5rem 0 .75rem; text-transform: uppercase; letter-spacing: .05em; }
-    .premium-widget { position: fixed; top: 1rem; right: 18rem; background: transparent; z-index: 100; text-align: center; width: 260px; }
+    .premium-widget { position: absolute; top: 1rem; right: 18rem; background: transparent; text-align: center; width: 260px; }
     .pw-counts { font-size: .78rem; color: #8b949e; margin: .15rem 0; }
     .pw-meta { font-size: .68rem; color: #484f58; }
     .pw-err { font-size: .8rem; color: #484f58; }
@@ -242,7 +242,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
     <thead><tr><th>Model</th><th>Requests</th><th>Input Tokens</th><th>Output Tokens</th></tr></thead>
     <tbody id="by-extraction-body"></tbody>
   </table>
-  <div class="footer">Stats update every 10s (no page reload) &nbsp;|&nbsp; <a href="/compilation" style="color:#58a6ff">Message Inspector</a> &nbsp;|&nbsp; <a href="/copilot" style="color:#58a6ff">Copilot Inspector</a></div>
+  <div class="footer">Stats update every 10s (no page reload) &nbsp;|&nbsp; <a href="/dashboard" style="color:#58a6ff">Dashboard</a> &nbsp;|&nbsp; <a href="/compilation" style="color:#58a6ff">Message Inspector</a> &nbsp;|&nbsp; <a href="/copilot" style="color:#58a6ff">Copilot Inspector</a></div>
   <script src="/dashboard.js"></script>
 </body></html>`;
 
@@ -305,6 +305,11 @@ const COMPILATION_HTML = `<!DOCTYPE html>
 <div class="header-row">
   <h1>\uD83D\uDD0D Message Inspector</h1>
   <button class="btn-refresh" onclick="load()">\u21ba Refresh</button>
+</div>
+<div style="display:flex;gap:12px;margin-bottom:20px">
+  <a href="/dashboard" style="color:#3b82f6;font-size:.85rem;text-decoration:none">Dashboard</a>
+  <a href="/compilation" style="color:#3b82f6;font-size:.85rem;text-decoration:none">Message Inspector</a>
+  <a href="/copilot" style="color:#3b82f6;font-size:.85rem;text-decoration:none">Copilot Inspector</a>
 </div>
 <table>
   <thead><tr>

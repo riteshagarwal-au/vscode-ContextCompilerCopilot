@@ -4,6 +4,7 @@
   "description": "Automatically optimises GitHub Copilot prompts — strips boilerplate, trims history, and filters irrelevant system-prompt sections to reduce token usage.",
   "version": "0.1.0",
   "publisher": "riteshagarwal",
+  "icon": "images/icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",
