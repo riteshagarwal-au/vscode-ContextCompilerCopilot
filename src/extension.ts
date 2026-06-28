@@ -9,7 +9,7 @@
  */
 
 import * as vscode from 'vscode';
-import { ProxyServer } from './proxy-server';
+import { ProxyServer, resetStats } from './proxy-server';
 import { showDashboard } from './dashboard';
 import { computeStats, config as ccConfig } from 'context-compiler-typescript';
 import * as os from 'os';
@@ -108,6 +108,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       });
       if (!input) return;
       await vscode.workspace.getConfiguration('contextCompilerCopilot').update('proxyPort', Number(input), vscode.ConfigurationTarget.Global);
+    }),
+
+    vscode.commands.registerCommand('contextCompilerCopilot.resetStats', async () => {
+      const confirm = await vscode.window.showWarningMessage(
+        'Reset all token savings stats? This cannot be undone.',
+        { modal: true },
+        'Reset',
+      );
+      if (confirm !== 'Reset') return;
+      resetStats();
+      statsViewProvider.refresh();
+      vscode.window.showInformationMessage('Context Compiler: stats reset.');
     }),
 
     vscode.commands.registerCommand('contextCompilerCopilot.changeExtractionModel', async () => {

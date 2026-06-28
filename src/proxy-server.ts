@@ -21,7 +21,7 @@ import type { Message } from 'context-compiler-typescript';
 import { runPipeline } from 'context-compiler-typescript';
 import { record } from 'context-compiler-typescript';
 import { makeVscodeLLMCaller } from './llm-caller';
-import { getCopilotToken } from './copilot-auth';
+import { getCopilotToken, getGitHubToken } from './copilot-auth';
 
 // ── Compilation store ─────────────────────────────────────────────────────────
 interface CompilationEntry {
@@ -49,6 +49,13 @@ interface CopilotEntry {
 const MAX_STORE = 10000;
 const _compilationStore: CompilationEntry[] = [];
 const _copilotStore: CopilotEntry[] = [];
+
+export function resetStats(): void {
+  _compilationStore.splice(0);
+  _copilotStore.splice(0);
+  try { const p = _getExchangesPath(); if (require('fs').existsSync(p)) require('fs').writeFileSync(p, '', 'utf8'); } catch { /* ignore */ }
+  try { const p = _getCopilotStorePath(); if (require('fs').existsSync(p)) require('fs').writeFileSync(p, '', 'utf8'); } catch { /* ignore */ }
+}
 
 function _getCopilotStorePath(): string {
   return path.join(os.homedir(), 'Library', 'Application Support', 'Code', 'User', 'ccc_copilot_exchanges.jsonl');
@@ -184,65 +191,59 @@ function storeCompilation(
 const DASHBOARD_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Context Compiler Copilot — Dashboard</title>
-<style>
-  :root{--bg:#0f1117;--surface:#1a1d27;--border:#2a2d3e;--green:#22c55e;--yellow:#eab308;
-    --red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--text:#e2e8f0;--muted:#64748b}
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;padding:24px}
-  h1{font-size:1.4rem;font-weight:700;margin-bottom:4px}
-  .subtitle{color:var(--muted);font-size:.85rem;margin-bottom:24px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-bottom:24px}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px}
-  .card-label{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
-  .card-value{font-size:2rem;font-weight:800;line-height:1}
-  .card-sub{font-size:.75rem;color:var(--muted);margin-top:4px}
-  .green{color:var(--green)}.yellow{color:var(--yellow)}.blue{color:var(--blue)}.purple{color:var(--purple)}.red{color:var(--red)}
-  .section-title{font-size:.85rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
-  .bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-  .bar-label{width:110px;font-size:.8rem;text-align:right;color:var(--muted)}
-  .bar-track{flex:1;height:10px;background:var(--border);border-radius:6px;overflow:hidden}
-  .bar-fill{height:100%;border-radius:6px;transition:width .6s ease}
-  .bar-pct{width:40px;font-size:.78rem;color:var(--text)}
-  .table-wrap{overflow-x:auto}
-  table{width:100%;border-collapse:collapse;font-size:.8rem}
-  th{text-align:left;padding:8px 12px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border)}
-  td{padding:8px 12px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
-  tr:last-child td{border-bottom:none}
-  tr:hover td{background:var(--border)}
-  .refresh-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
-  .refresh-info{font-size:.78rem;color:var(--muted)}
-  .btn{background:var(--blue);color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:.8rem;cursor:pointer}
-  .btn:hover{opacity:.85}
-  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.72rem;font-weight:700}
-  .nav{display:flex;gap:12px;margin-bottom:20px}
-  .nav a{color:var(--blue);font-size:.85rem;text-decoration:none}
-  .nav a:hover{text-decoration:underline}
-</style>
+  <meta charset="UTF-8">
+  <title>Context Compiler Copilot — Dashboard</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0d1117; color: #e6edf3; margin: 0; padding: 2rem; }
+    h1 { font-size: 1.4rem; color: #58a6ff; margin: 0 0 1.5rem; }
+    h2 { font-size: 1rem; color: #8b949e; margin: 1.5rem 0 .75rem; text-transform: uppercase; letter-spacing: .05em; }
+    .premium-widget { position: fixed; top: 1rem; right: 18rem; background: transparent; z-index: 100; text-align: center; width: 260px; }
+    .pw-counts { font-size: .78rem; color: #8b949e; margin: .15rem 0; }
+    .pw-meta { font-size: .68rem; color: #484f58; }
+    .pw-err { font-size: .8rem; color: #484f58; }
+    .cards { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 2rem; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1rem 1.5rem; min-width: 160px; }
+    .card .label { font-size: 0.75rem; color: #8b949e; text-transform: uppercase; letter-spacing: .05em; }
+    .card .value { font-size: 1.8rem; font-weight: 700; margin-top: .25rem; }
+    .saved { color: #3fb950; }
+    .cost { color: #f78166; }
+    table { border-collapse: collapse; width: 100%; background: #161b22; border-radius: 8px; overflow: hidden; margin-bottom: 2rem; }
+    th, td { padding: .6rem 1rem; text-align: left; border-bottom: 1px solid #30363d; font-size: .9rem; }
+    th { background: #21262d; color: #8b949e; text-transform: uppercase; font-size: .75rem; letter-spacing: .05em; }
+    tr:last-child td { border-bottom: none; }
+    .note { font-size: .75rem; color: #484f58; margin-bottom: 1rem; }
+    .footer { margin-top: 1rem; font-size: .75rem; color: #484f58; }
+  </style>
 </head>
 <body>
-<h1>⚙ Context Compiler Copilot — Dashboard</h1>
-<p class="subtitle" id="subtitle">Loading…</p>
-<div class="nav"><a href="/dashboard">Dashboard</a><a href="/compilation">Message Inspector</a></div>
-<div class="refresh-bar">
-  <span class="refresh-info" id="last-updated">Fetching…</span>
-  <button class="btn" onclick="load()">↻ Refresh</button>
-</div>
-<div class="grid" id="kpi-grid"></div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px">
-  <div class="card"><div class="section-title" style="margin-bottom:14px">Mode Breakdown</div><div id="mode-bars"></div></div>
-  <div class="card"><div class="section-title" style="margin-bottom:14px">Token Budget</div><div id="token-bars"></div></div>
-</div>
-<div class="card" style="margin-bottom:24px">
-  <div class="section-title" style="margin-bottom:14px">Recent Requests</div>
-  <div class="table-wrap">
-    <table><thead><tr>
-      <th>ID</th><th>Time</th><th>Mode</th><th>Model</th><th>Raw</th><th>Compiled</th><th>Saved</th><th>Latency</th>
-    </tr></thead><tbody id="req-table"></tbody></table>
-  </div>
-</div>
-<script src="/dashboard.js"></script>
+  <h1>&#9889; Context Compiler Copilot — Savings Dashboard</h1>
+  <div class="premium-widget" id="pw"><div class="pw-err">Loading usage\u2026</div></div>
+  <script>
+    const START_DEG=135,SWEEP_DEG=270,NUM_TICKS=32;let gaugeBuilt=false;
+    function buildGauge(){const pw=document.getElementById('pw');const ticks=Array.from({length:NUM_TICKS},(_,i)=>{const frac=i/(NUM_TICKS-1);const ar=(START_DEG+frac*SWEEP_DEG)*Math.PI/180;const isMain=i%4===0;const r1=isMain?66:70,r2=78;const x1=100+r1*Math.cos(ar),y1=100+r1*Math.sin(ar),x2=100+r2*Math.cos(ar),y2=100+r2*Math.sin(ar);const tc=frac<.35?'#3fb950':frac<.55?'#d4a017':frac<.75?'#f0833a':'#f78166';return '<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'" stroke="'+tc+'" stroke-width="'+(isMain?3:1.5)+'" stroke-linecap="round"/>';}).join('');pw.innerHTML='<svg id="gauge-svg" viewBox="0 0 200 200" width="290" height="290"><defs><radialGradient id="rim" cx="38%" cy="32%"><stop offset="0%" stop-color="#d0d0d0"/><stop offset="50%" stop-color="#888"/><stop offset="100%" stop-color="#444"/></radialGradient><radialGradient id="face" cx="40%" cy="35%"><stop offset="0%" stop-color="#1a1a2e"/><stop offset="100%" stop-color="#050508"/></radialGradient></defs><circle cx="100" cy="100" r="98" fill="url(#rim)"/><circle cx="100" cy="100" r="88" fill="#555"/><circle cx="100" cy="100" r="84" fill="url(#face)"/>'+ticks+'<line id="g-needle" x1="100" y1="100" x2="100" y2="42" stroke="#e03030" stroke-width="2.5" stroke-linecap="round" style="transition:x2 1s ease,y2 1s ease"/><circle cx="100" cy="100" r="7" fill="#cc0000" stroke="#660000" stroke-width="1.5"/><circle cx="100" cy="100" r="3" fill="#330000"/><text id="g-pct" x="100" y="145" text-anchor="middle" font-size="16" font-weight="700" font-family="system-ui,sans-serif">\u2026</text><text x="100" y="125" text-anchor="middle" fill="#8b949e" font-size="7" font-family="system-ui,sans-serif" letter-spacing="1">PREMIUM INTERACTIONS</text></svg><div id="g-counts" class="pw-counts"></div><div id="g-meta" class="pw-meta"></div>';gaugeBuilt=true;}
+    async function loadPremium(){try{const u=await fetch('/proxy-usage').then(r=>r.json());const q=u&&u.quota_snapshots&&u.quota_snapshots.premium_interactions;if(!q){document.getElementById('pw').innerHTML='<div class="pw-err">Usage unavailable</div>';return;}const ent=q.entitlement||0,rem=q.remaining??0,used=ent-rem,pct=ent>0?+((used/ent)*100).toFixed(1):0;const color=pct>85?'#f78166':pct>60?'#d29922':'#3fb950';const resetDate=u.quota_reset_date_utc?new Date(u.quota_reset_date_utc).toLocaleDateString('en-AU',{day:'numeric',month:'short'}):'?';const overage=q.overage_permitted?'<span style="color:#3fb950">Overage allowed</span>':'<span style="color:#484f58">No overage</span>';if(!gaugeBuilt)buildGauge();const nr=(START_DEG+(pct/100)*SWEEP_DEG)*Math.PI/180;const nx=(100+58*Math.cos(nr)).toFixed(1),ny=(100+58*Math.sin(nr)).toFixed(1),tx=(100-14*Math.cos(nr)).toFixed(1),ty=(100-14*Math.sin(nr)).toFixed(1);const needle=document.getElementById('g-needle');needle.setAttribute('x1',tx);needle.setAttribute('y1',ty);needle.setAttribute('x2',nx);needle.setAttribute('y2',ny);const pctEl=document.getElementById('g-pct');pctEl.textContent=pct+'%';pctEl.setAttribute('fill',color);document.getElementById('g-counts').textContent=used.toLocaleString()+' / '+ent.toLocaleString()+' \u00b7 '+rem.toLocaleString()+' left';document.getElementById('g-meta').innerHTML='Resets '+resetDate+' | '+overage;}catch(e){if(!gaugeBuilt)document.getElementById('pw').innerHTML='<div class="pw-err">Proxy unreachable</div>';}}
+    loadPremium();setInterval(loadPremium,15000);
+  </script>
+  <div class="cards" id="cards-row1"></div>
+  <div class="cards" id="cards-row2"></div>
+  <p class="note" id="stat-note"></p>
+  <h2>By Mode</h2>
+  <table>
+    <thead><tr><th>Mode</th><th>Requests</th><th>Tokens Before</th><th>Tokens After</th><th>Tokens Saved</th><th>Avg %</th></tr></thead>
+    <tbody id="by-mode-body"></tbody>
+  </table>
+  <h2>By Model</h2>
+  <table>
+    <thead><tr><th>Model</th><th>Requests</th><th>Tokens Before</th><th>Tokens After</th><th>Avg %</th></tr></thead>
+    <tbody id="by-model-body"></tbody>
+  </table>
+  <h2>By Extraction Model</h2>
+  <table>
+    <thead><tr><th>Model</th><th>Requests</th><th>Input Tokens</th><th>Output Tokens</th></tr></thead>
+    <tbody id="by-extraction-body"></tbody>
+  </table>
+  <div class="footer">Stats update every 10s (no page reload) &nbsp;|&nbsp; <a href="/compilation" style="color:#58a6ff">Message Inspector</a> &nbsp;|&nbsp; <a href="/copilot" style="color:#58a6ff">Copilot Inspector</a></div>
+  <script src="/dashboard.js"></script>
 </body></html>`;
 
 // ── Compilation Inspector HTML (ported from CC2) ──────────────────────────────
@@ -318,99 +319,44 @@ const COMPILATION_HTML = `<!DOCTYPE html>
 <script src="/compilation.js"></script>
 </body></html>`;
 
-// ── Dashboard JS ──────────────────────────────────────────────────────────────
+// ── Dashboard JS ──────────────────────────────────────────────────────────────────────────────
 const DASHBOARD_JS = `
-const MODE_COLORS={passthrough:'#64748b',conversation:'#3b82f6',context:'#a855f7',full:'#22c55e'};
-function esc(s){return s.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;');}
-function fmt(n){return n==null?'\u2014':n.toLocaleString();}
-function modeLabel(m){return '<span class="pill" style="background:'+(MODE_COLORS[m]||'#333')+'22;color:'+(MODE_COLORS[m]||'#aaa')+'">'+m+'</span>';}
-async function load(){
+function fmt(n){return n==null?'\u2014':(+n).toLocaleString();}
+function card(label,valueHtml){return '<div class="card"><div class="label">'+label+'</div><div class="value">'+valueHtml+'</div></div>';}
+async function refreshStats(){
   try{
-    const r=await fetch('/metrics/detail');
-    const d=await r.json();
-    render(d);
-    document.getElementById('last-updated').textContent='Last updated: '+new Date().toLocaleString();
-  }catch(e){document.getElementById('last-updated').textContent='Error fetching data';}
+    const reqs=(await fetch('/metrics/detail').then(r=>r.json())).recent_requests||[];
+    const total=reqs.length;
+    const rawSum=reqs.reduce((a,r)=>a+(r.tokens_before||r.raw_tokens||0),0);
+    const compSum=reqs.reduce((a,r)=>a+(r.tokens_after||r.compiled_tokens||0),0);
+    const savedSum=rawSum-compSum;
+    const avgPct=total>0?(reqs.reduce((a,r)=>a+(r.reduction_pct||0),0)/total).toFixed(2):0;
+    const extInSum=reqs.reduce((a,r)=>a+(r.haiku_input_tokens||0),0);
+    const extOutSum=reqs.reduce((a,r)=>a+(r.haiku_output_tokens||0),0);
+    document.getElementById('cards-row1').innerHTML=
+      card('Total Requests',''+total)+
+      card('Tokens Before',fmt(rawSum))+
+      card('Tokens After',fmt(compSum))+
+      card('Tokens Saved','<span class="saved">'+fmt(savedSum)+'</span>')+
+      card('Avg Token Savings','<span class="saved">'+avgPct+'%</span>');
+    document.getElementById('cards-row2').innerHTML=
+      card('Extraction Input',fmt(extInSum))+
+      card('Extraction Output',fmt(extOutSum));
+    document.getElementById('stat-note').textContent=
+      'Extraction overhead: '+fmt(extInSum)+' input + '+fmt(extOutSum)+' output tokens';
+    const byMode={};
+    reqs.forEach(function(r){const m=r.mode||'unknown';if(!byMode[m])byMode[m]={requests:0,before:0,after:0,pctSum:0};byMode[m].requests++;byMode[m].before+=(r.tokens_before||r.raw_tokens||0);byMode[m].after+=(r.tokens_after||r.compiled_tokens||0);byMode[m].pctSum+=(r.reduction_pct||0);});
+    document.getElementById('by-mode-body').innerHTML=Object.entries(byMode).map(function(e){const m=e[0],v=e[1],saved=v.before-v.after,avg=(v.requests>0?(v.pctSum/v.requests).toFixed(2):0);return '<tr><td>'+m+'</td><td>'+v.requests+'</td><td>'+fmt(v.before)+'</td><td>'+fmt(v.after)+'</td><td>'+fmt(saved)+'</td><td>'+avg+'%</td></tr>';}).join('')||'<tr><td colspan="6" style="color:#484f58">No data yet</td></tr>';
+    const byModel={};
+    reqs.forEach(function(r){const m=r.model||'unknown';if(!byModel[m])byModel[m]={requests:0,before:0,after:0,pctSum:0};byModel[m].requests++;byModel[m].before+=(r.tokens_before||r.raw_tokens||0);byModel[m].after+=(r.tokens_after||r.compiled_tokens||0);byModel[m].pctSum+=(r.reduction_pct||0);});
+    document.getElementById('by-model-body').innerHTML=Object.entries(byModel).map(function(e){const m=e[0],v=e[1],avg=(v.requests>0?(v.pctSum/v.requests).toFixed(2):0);return '<tr><td style="font-family:monospace;font-size:.8rem">'+m+'</td><td>'+v.requests+'</td><td>'+fmt(v.before)+'</td><td>'+fmt(v.after)+'</td><td>'+avg+'%</td></tr>';}).join('')||'<tr><td colspan="5" style="color:#484f58">No data yet</td></tr>';
+    const byExt={};
+    reqs.forEach(function(r){const m=r.extraction_model||'';if(!m)return;if(!byExt[m])byExt[m]={requests:0,input:0,output:0};byExt[m].requests++;byExt[m].input+=(r.haiku_input_tokens||0);byExt[m].output+=(r.haiku_output_tokens||0);});
+    document.getElementById('by-extraction-body').innerHTML=Object.entries(byExt).map(function(e){const m=e[0],v=e[1];return '<tr><td style="font-family:monospace;font-size:.8rem">'+m+'</td><td>'+v.requests+'</td><td>'+fmt(v.input)+'</td><td>'+fmt(v.output)+'</td></tr>';}).join('')||'<tr><td colspan="4" style="color:#484f58">No extraction data yet</td></tr>';
+  }catch(e){/* silent */}
 }
-function render(d){
-  const reqs=d.recent_requests||[];
-  const total=reqs.length;
-  const rawSum=reqs.reduce((a,r)=>a+r.raw_tokens,0);
-  const compSum=reqs.reduce((a,r)=>a+r.compiled_tokens,0);
-  const savedSum=rawSum-compSum;
-  const avgPct=total>0?(reqs.reduce((a,r)=>a+r.reduction_pct,0)/total).toFixed(1):0;
-  const costSaved=((savedSum/1000000)*3).toFixed(4);
-  const modes={};
-  reqs.forEach(r=>{modes[r.mode]=(modes[r.mode]||0)+1;});
-  document.getElementById('subtitle').textContent=total+' requests captured \u2014 port 8181';
-  const kpis=[
-    {label:'Avg Token Saving',value:avgPct+'%',cls:'green',sub:fmt(savedSum)+' tokens saved total'},
-    {label:'Requests',value:fmt(total),cls:'blue',sub:'all time'},
-    {label:'Est. Cost Saved',value:'$'+costSaved,cls:'green',sub:'@ $3/1M tokens'},
-    {label:'Tokens Raw',value:fmt(rawSum),cls:'yellow',sub:'before pipeline'},
-    {label:'Tokens Compiled',value:fmt(compSum),cls:'blue',sub:'after pipeline'},
-    {label:'Tokens Saved',value:fmt(savedSum),cls:'green',sub:'total reduction'},
-  ];
-  const kpiEl=document.getElementById('kpi-grid');
-  kpiEl.innerHTML='';
-  kpis.forEach(k=>{
-    const c=document.createElement('div');c.className='card';
-    c.innerHTML='<div class="card-label">'+k.label+'</div><div class="card-value '+k.cls+'">'+k.value+'</div><div class="card-sub">'+k.sub+'</div>';
-    kpiEl.appendChild(c);
-  });
-  const modeEntries=Object.entries(modes);
-  const modeBarsEl=document.getElementById('mode-bars');
-  modeBarsEl.innerHTML='';
-  if(modeEntries.length){
-    modeEntries.forEach(function(entry){
-      const m=entry[0],c=entry[1];
-      const p=(c/total*100).toFixed(1);
-      const row=document.createElement('div');row.className='bar-row';
-      row.innerHTML='<div class="bar-label">'+m+'</div><div class="bar-track"><div class="bar-fill" style="width:'+p+'%;background:'+(MODE_COLORS[m]||'#888')+'"></div></div><div class="bar-pct">'+p+'%</div>';
-      modeBarsEl.appendChild(row);
-    });
-  }else{modeBarsEl.textContent='No data yet';}
-  const tokenBarsEl=document.getElementById('token-bars');
-  tokenBarsEl.innerHTML='';
-  [['Raw',rawSum,'#ef4444',100],['Compiled',compSum,'#3b82f6',rawSum>0?(compSum/rawSum*100).toFixed(1):0],['Saved',savedSum,'#22c55e',rawSum>0?(savedSum/rawSum*100).toFixed(1):0]].forEach(function(row){
-    const el=document.createElement('div');el.className='bar-row';
-    el.innerHTML='<div class="bar-label">'+row[0]+'</div><div class="bar-track"><div class="bar-fill" style="width:'+row[3]+'%;background:'+row[2]+'"></div></div><div class="bar-pct">'+fmt(row[1])+'</div>';
-    tokenBarsEl.appendChild(el);
-  });
-  const tbody=document.getElementById('req-table');
-  tbody.innerHTML='';
-  if(!reqs.length){
-    const tr=document.createElement('tr');
-    const td=document.createElement('td');td.colSpan=8;td.style.cssText='color:#64748b;text-align:center;padding:20px';
-    td.textContent='No requests yet';tbody.appendChild(tr);tr.appendChild(td);
-  }else{
-    reqs.forEach(function(r){
-      const saved=r.raw_tokens-r.compiled_tokens;
-      const tr=document.createElement('tr');
-      const cells=[
-        {text:r.request_id.slice(0,8),style:'font-family:monospace;color:#64748b;font-size:.72rem'},
-        {text:new Date(r.timestamp).toLocaleString()},
-        {html:modeLabel(r.mode)},
-        {text:r.model,style:'color:#eab308;font-size:.78rem'},
-        {text:fmt(r.raw_tokens)},
-        {text:fmt(r.compiled_tokens)},
-        {text:saved>0?'\u2212'+fmt(saved):'\u2014',cls:saved>0?'green':''},
-        {text:r.latency_ms+'ms'},
-      ];
-      cells.forEach(function(c){
-        const td=document.createElement('td');
-        if(c.style)td.style.cssText=c.style;
-        if(c.cls)td.className=c.cls;
-        if(c.html)td.innerHTML=c.html;else td.textContent=c.text;
-        tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
-    });
-  }
-}
-load();setInterval(load,5000);
+refreshStats();setInterval(refreshStats,10000);
 `;
-
 // ── Compilation JS ────────────────────────────────────────────────────────────
 const COMPILATION_JS = `
 let _data=[];
@@ -748,6 +694,27 @@ export class ProxyServer {
 
   private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     if (this.handleDashboardRoutes(req, res)) return;
+
+    // ── /proxy-usage — fetch GitHub Copilot quota using VS Code's GitHub token ─
+    if (req.method === 'GET' && (req.url ?? '/') === '/proxy-usage') {
+      try {
+        const githubToken = await getGitHubToken();
+        const resp = await fetch('https://api.github.com/copilot_internal/user', {
+          headers: {
+            'Authorization': `token ${githubToken}`,
+            'Accept': 'application/json',
+            'User-Agent': 'vscode-context-compiler-copilot/0.1.0',
+          },
+        });
+        const json = await resp.json();
+        res.writeHead(resp.status, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(json));
+      } catch (e) {
+        res.writeHead(502, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: String(e) }));
+      }
+      return;
+    }
 
     const cfg = getConfig();
 
